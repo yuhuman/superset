@@ -20,9 +20,12 @@ ENV GUNICORN_CMD_ARGS="--workers ${GUNICORN_WORKERS} --timeout ${GUNICORN_TIMEOU
 # Create superset user & install dependencies
 RUN useradd -U -m superset && \
     mkdir /etc/superset  && \
-    mkdir ${SUPERSET_HOME} && \
+    mkdir ${SUPERSET_HOME} &&\
     chown -R superset:superset /etc/superset && \
     chown -R superset:superset ${SUPERSET_HOME} && \
+    echo "deb http://ftp.cn.debian.org/debian/ stretch main" > /etc/apt/sources.list && \
+    echo "deb http://ftp.cn.debian.org/debian/ stretch-updates main" >> /etc/apt/sources.list && \
+    echo "deb http://ftp.cn.debian.org/debian-security stretch/updates main" >> /etc/apt/sources.list && \
     apt-get update && \
     apt-get install -y \
         build-essential \
@@ -39,9 +42,18 @@ RUN useradd -U -m superset && \
         python3-pip && \
     apt-get clean && \
     rm -r /var/lib/apt/lists/* && \
-    curl https://raw.githubusercontent.com/${SUPERSET_REPO}/${SUPERSET_VERSION}/requirements.txt -o requirements.txt && \
+    mkdir -p ~/.pip/ && \
+    echo "[global]" >> ~/.pip/pip.conf && \
+    echo "timeout = 6000" >> ~/.pip/pip.conf && \
+    echo "index-url = https://mirrors.ustc.edu.cn/pypi/web/simple" >> ~/.pip/pip.conf && \
+    echo "trusted-host = mirrors.ustc.edu.cn" >> ~/.pip/pip.conf && \
+    curl https://raw.githubusercontent.com/apache/incubator-superset/master/requirements.txt -o requirements.txt && \
+    sed -i '/tabulator==1.15.0/d' requirements.txt && \
+    sed -i 's/markdown==3.0/markdown==2.6.11/g' requirements.txt && \
     pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir \
+    rm requirements.txt
+
+RUN pip3 install --no-cache-dir \
         Werkzeug==0.12.1 \
         flask-cors==3.0.3 \
         flask-mail==0.9.1 \
@@ -58,9 +70,14 @@ RUN useradd -U -m superset && \
         pymssql==2.1.3 \
         redis==2.10.5 \
         sqlalchemy-clickhouse==0.1.5.post0 \
-        sqlalchemy-redshift==0.5.0 \
+        sqlalchemy-redshift==0.5.0 
+
+RUN pip3 install --no-cache-dir -i https://pypi.org/simple \
+        tabulator==1.15.0 
+
+RUN pip3 install --no-cache-dir \
         superset==${SUPERSET_VERSION} && \
-    rm requirements.txt
+    chown -R superset:superset /usr/local/lib/python3.5/dist-packages
 
 # Configure Filesystem
 COPY superset /usr/local/bin
